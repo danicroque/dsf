@@ -1,0 +1,86 @@
+import sys, os
+sys.path.append('..')
+from elasticsearch import Elasticsearch
+from elasticsearch import helpers
+from ServerProperty import BasicProperty as p
+from ServerService import LogService as LS
+
+
+log = LS.basic_log('elasticCRUD', p.main_error)
+
+
+def get_all_data(index, query):
+    try:
+        es = Elasticsearch(p.elastic_host)
+        data = []
+        first_iter = True
+        num_size = 1000
+        num_from = 0
+
+        while first_iter or len(data) < 1000:
+            first_iter = False
+
+            query_full = {
+                "query": query,
+                "size": num_size,
+                "from": 0
+            }
+
+            num_size += 1000
+            num_from += 1000
+
+            data.append(es.search(index=index, body=query_full)['hits']['hits'])
+
+        return data
+
+
+    except Exception as ex:
+        log.error("error in get_all_data: " + str(ex))
+        return None
+
+
+def get_data(index, query):
+    try:
+        # query_example = {"query": {"match_all": {}}}
+        es = Elasticsearch(p.elastic_host)
+        return es.search(index=index, body=query)['hits']['hits']
+    except Exception as ex:
+        log.error('Error getting info from database: ' + str(ex))
+        return None
+
+
+def delete_index(index):
+    try:
+        es = Elasticsearch(p.elastic_host)
+        es.indices.delete(index=index)
+    except Exception as ex:
+        log.error('Error deleting index from database: ' + str(ex))
+        return None
+
+
+def insert(doc, index):
+    try:
+        es = Elasticsearch(p.elastic_host)
+        res = es.index(index=index, body=doc)
+        return res
+    except Exception as ex:
+        log.error('Error inserting simple data into ElasticSearch: ' + str(ex))
+        return None
+
+
+def bulk(docs, index):
+    try:
+        es = Elasticsearch(p.elastic_host)
+        bulk_array = []
+
+        for doc in docs:
+            new_json = {}
+            new_json['_index'] = index
+            new_json['_source'] = doc
+            bulk_array.append(new_json)
+
+        res = helpers.bulk(es, bulk_array)
+        return res
+    except Exception as ex:
+        log.error('Error inserting bulk into ElasticSearch: ' + str(ex))
+        return None
